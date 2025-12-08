@@ -110,3 +110,44 @@ with tab_ig:
 
 with tab_li:
     show_network_tab("LinkedIn", data_dict["LinkedIn"])
+
+def show_key_insights(df):
+    st.subheader("📌 Key Insights: November vs October")
+
+    # Filtrar solo Octubre y Noviembre
+    df_subset = df[df["Month"].isin(["October", "November"])]
+
+    if df_subset["Month"].nunique() < 2:
+        st.info("Data for October and November is required to compute insights.")
+        return
+
+    # Lista de métricas a comparar
+    metrics = ["Followers", "Views", "Posts", "Interactions", "Comments"]
+
+    insights = []
+
+    for metric in metrics:
+        if metric in df.columns:
+            oct_val = df_subset[df_subset["Month"] == "October"][metric].sum()
+            nov_val = df_subset[df_subset["Month"] == "November"][metric].sum()
+
+            diff = nov_val - oct_val
+            pct_change = (diff / oct_val * 100) if oct_val != 0 else None
+
+            insights.append({
+                "Metric": metric,
+                "October": oct_val,
+                "November": nov_val,
+                "Difference": diff,
+                "Percentage Change (%)": pct_change
+            })
+
+    insights_df = pd.DataFrame(insights)
+
+    st.dataframe(insights_df.style.format({
+        "October": "{:,.0f}",
+        "November": "{:,.0f}",
+        "Difference": "{:,.0f}",
+        "Percentage Change (%)": "{:,.1f}"
+    }))
+
