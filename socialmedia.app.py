@@ -78,8 +78,8 @@ def generate_insight_text(df, network_name):
 
     if df_subset["Month"].nunique() < 2:
         return (
-            f"For **{network_name}**, more data is needed for both October and November "
-            "to make a month-to-month comparison."
+            f"For {network_name}, we still need data for both October and November "
+            "to compare one month against the other."
         )
 
     metrics = ["Followers", "Views", "Posts", "Interactions", "Comments"]
@@ -117,15 +117,15 @@ def generate_insight_text(df, network_name):
             else:
                 trends_all["mixed"].append(metric.lower())
 
-    # Construir texto simple
+    # Texto simple para octubre vs noviembre
     parts_oct_nov = []
     if changes_oct_nov["up"]:
         parts_oct_nov.append(
-            f"{', '.join(changes_oct_nov['up'])} increased from October to November"
+            f"{', '.join(changes_oct_nov['up'])} went up from October to November"
         )
     if changes_oct_nov["down"]:
         parts_oct_nov.append(
-            f"{', '.join(changes_oct_nov['down'])} decreased from October to November"
+            f"{', '.join(changes_oct_nov['down'])} went down from October to November"
         )
     if changes_oct_nov["stable"]:
         parts_oct_nov.append(
@@ -136,13 +136,14 @@ def generate_insight_text(df, network_name):
         sentence_oct_nov = "; ".join(parts_oct_nov) + "."
     else:
         sentence_oct_nov = (
-            "There are only small changes between October and November across the metrics."
+            "There are only small changes between October and November."
         )
 
+    # Texto simple para todos los meses
     parts_all = []
     if trends_all["up"]:
         parts_all.append(
-            f"over all months, {', '.join(trends_all['up'])} show a general upward trend"
+            f"over all months, {', '.join(trends_all['up'])} show a general increase"
         )
     if trends_all["down"]:
         parts_all.append(
@@ -157,42 +158,34 @@ def generate_insight_text(df, network_name):
         sentence_all = "; ".join(parts_all) + "."
     else:
         sentence_all = (
-            "Across all months, the metrics move in a mixed way without a clear single trend."
+            "Across all months, the metrics move in different ways without one clear pattern."
         )
 
     text = (
-        f"For **{network_name}**, when we compare October and November, "
+        f"For {network_name}, when we compare October and November, "
         f"{sentence_oct_nov} "
-        f"Looking at all the months in the dataset, {sentence_all}"
+        f"Looking at all months, {sentence_all}"
     )
 
     return text
 
 
 def show_key_insights(df, network_name):
-    st.subheader("📌 Key Insights: Monthly Patterns")
-
+    st.markdown("**📌 Key insights**")
     insight_text = generate_insight_text(df, network_name)
-
-    st.markdown(
-        f"""
-📝 **Short summary**
-
-{insight_text}
-        """
-    )
+    st.markdown(insight_text)
 
 
 # =========================================
 # 5. Helper to plot one social network
 # =========================================
-def show_network_tab(network_name, df, color_sequence=None):
+def show_network_section(network_name, df, color_sequence=None):
     st.subheader(network_name)
 
     metrics = ["Followers", "Views", "Posts", "Interactions", "Comments"]
 
     selected_metrics = st.multiselect(
-        "Select metrics to display:",
+        f"Select metrics to display for {network_name}:",
         metrics,
         default=["Views", "Followers"],
         key=f"{network_name}_metrics"
@@ -226,9 +219,10 @@ def show_network_tab(network_name, df, color_sequence=None):
 
     st.plotly_chart(fig, use_container_width=True)
 
-    # Optional: show raw data
     with st.expander("Show data table"):
         st.dataframe(df)
+
+    show_key_insights(df, network_name)
 
 
 # =========================================
@@ -246,44 +240,48 @@ linkedin_colors = [
     "#0077b5", "#00b894", "#0984e3", "#55efc4", "#74b9ff"
 ]
 
-# =========================================
-# 7. Tabs per social network
-# =========================================
-tab_fb, tab_ig, tab_li, tab_summary = st.tabs(
-    ["Facebook", "Instagram", "LinkedIn", "Overall Summary"]
-)
 
-with tab_summary:
-    st.header("📊 Overall Summary")
+# =========================================
+# 7. Single-page layout (all sections)
+# =========================================
 
-    st.markdown("""
-Here is a simple overview of how each social network is performing:
+# ---- Resumen general ----
+st.header("📊 Overall Summary")
+
+st.markdown("""
+Here is a simple overview of how each social network is doing:
 
 **Facebook**  
-Facebook stays stable from month to month. It does not show big spikes, but it keeps a steady audience and regular activity. It works well for maintaining general visibility.
+Facebook stays quite stable from month to month. It keeps a steady audience and regular activity. It works well to maintain general visibility.
 
 **Instagram**  
-Instagram shows the biggest changes. When more content is posted, activity goes up quickly. It is our strongest platform for reaching new people and creating visual impact.
+Instagram is the most dynamic platform. When we post more content, activity grows fast. It is our strongest channel to reach new people and create visual impact.
 
 **LinkedIn**  
-LinkedIn grows slowly but consistently. It works best for connecting with professionals, sharing achievements, and supporting community updates. Even with lower numbers, interactions here are more meaningful.
+LinkedIn grows slowly but in a steady way. It is useful to connect with professionals, share our achievements, and support our community work. Even if the numbers are smaller, the interactions are more focused.
 
 **Overall**  
-Instagram performs the best in reach and activity.  
-Facebook is steady and reliable.  
-LinkedIn helps strengthen our professional presence.
+Instagram has the highest movement and reach.  
+Facebook is stable and reliable.  
+LinkedIn supports our professional image.
 
-Each platform plays a different and valuable role for IWA.
-    """)
+Each platform adds a different and important value for IWA.
+""")
 
-with tab_fb:
-    show_network_tab("Facebook", data_dict["Facebook"], color_sequence=facebook_colors)
-    show_key_insights(data_dict["Facebook"], "Facebook")
+st.markdown("---")
 
-with tab_ig:
-    show_network_tab("Instagram", data_dict["Instagram"], color_sequence=instagram_colors)
-    show_key_insights(data_dict["Instagram"], "Instagram")
+# ---- Facebook ----
+st.header("📘 Facebook")
+show_network_section("Facebook", data_dict["Facebook"], color_sequence=facebook_colors)
 
-with tab_li:
-    show_network_tab("LinkedIn", data_dict["LinkedIn"], color_sequence=linkedin_colors)
-    show_key_insights(data_dict["LinkedIn"], "LinkedIn")
+st.markdown("---")
+
+# ---- Instagram ----
+st.header("📷 Instagram")
+show_network_section("Instagram", data_dict["Instagram"], color_sequence=instagram_colors)
+
+st.markdown("---")
+
+# ---- LinkedIn ----
+st.header("💼 LinkedIn")
+show_network_section("LinkedIn", data_dict["LinkedIn"], color_sequence=linkedin_colors)
