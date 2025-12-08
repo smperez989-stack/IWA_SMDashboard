@@ -2,74 +2,6 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-pip install python-pptx matplotlib
-
-import io
-import matplotlib.pyplot as plt
-from pptx import Presentation
-from pptx.util import Inches
-
-def create_network_chart(df, metrics, title):
-    fig, ax = plt.subplots()
-    for metric in metrics:
-        if metric in df.columns:
-            ax.plot(df["Date"], df[metric], label=metric)
-    ax.set_title(title)
-    ax.set_xlabel("Month")
-    ax.set_ylabel("Value")
-    ax.legend()
-    buf = io.BytesIO()
-    fig.tight_layout()
-    fig.savefig(buf, format="png")
-    plt.close(fig)
-    buf.seek(0)
-    return buf
-
-def build_ppt_report(data_dict, global_summary_text):
-    prs = Presentation()
-
-    # 1) Portada
-    title_slide_layout = prs.slide_layouts[0]
-    slide = prs.slides.add_slide(title_slide_layout)
-    slide.shapes.title.text = "IWA Social Media Analytics"
-    slide.placeholders[1].text = "Monthly performance report\n(Facebook, Instagram, LinkedIn)"
-
-    # 2) Una diapositiva por red
-    metrics = ["Followers", "Views", "Posts", "Interactions", "Comments"]
-
-    for network_name, df_net in data_dict.items():
-        slide_layout = prs.slide_layouts[5]  # título + contenido
-        slide = prs.slides.add_slide(slide_layout)
-        slide.shapes.title.text = network_name
-
-        # gráfico
-        img_buf = create_network_chart(df_net, metrics, f"{network_name} – Monthly trends")
-        left = Inches(0.5)
-        top = Inches(1.5)
-        height = Inches(4)
-        slide.shapes.add_picture(img_buf, left, top, height=height)
-
-        # breve texto
-        tx_box = slide.shapes.add_textbox(Inches(6.5), Inches(1.5), Inches(3), Inches(4))
-        tf = tx_box.text_frame
-        tf.text = f"General view of {network_name} over the last months.\n\n" \
-                  f"- Followers and views trend over time.\n" \
-                  f"- Posts and interactions show activity level.\n" \
-                  f"- Use this slide to discuss what worked well."
-
-    # 3) Diapositiva de resumen general
-    slide_layout = prs.slide_layouts[1]
-    slide = prs.slides.add_slide(slide_layout)
-    slide.shapes.title.text = "Overall Summary"
-    slide.placeholders[1].text = global_summary_text
-
-    # Guardar en memoria
-    ppt_buffer = io.BytesIO()
-    prs.save(ppt_buffer)
-    ppt_buffer.seek(0)
-    return ppt_buffer
-
-
 # =========================================
 # 1. Page config
 # =========================================
@@ -355,17 +287,3 @@ with tab_ig:
 with tab_li:
     show_network_tab("LinkedIn", data_dict["LinkedIn"], color_sequence=linkedin_colors)
     show_key_insights(data_dict["LinkedIn"], "LinkedIn")
-
-st.markdown("---")
-st.subheader("📥 Download full report")
-
-# Aquí puedes usar el texto de tu summary general
-global_summary_text = (
-    "This report shows the monthly performance of Facebook, Instagram, and LinkedIn.\n\n"
-    "- Facebook: main channel for reach and views.\n"
-    "- Instagram: good for visual engagement.\n"
-    "- LinkedIn: growing presence for professional audience.\n\n"
-    "Use this report to plan content and focus on the strongest platforms."
-)
-
-if st.button
