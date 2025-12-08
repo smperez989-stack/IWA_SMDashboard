@@ -249,7 +249,9 @@ linkedin_colors = [
 # =========================================
 # 7. Tabs per social network
 # =========================================
-tab_fb, tab_ig, tab_li = st.tabs(["Facebook", "Instagram", "LinkedIn"])
+tab_fb, tab_ig, tab_li, tab_summary = st.tabs(
+    ["Facebook", "Instagram", "LinkedIn", "Overall Summary"]
+)
 
 with tab_fb:
     show_network_tab("Facebook", data_dict["Facebook"], color_sequence=facebook_colors)
@@ -262,3 +264,34 @@ with tab_ig:
 with tab_li:
     show_network_tab("LinkedIn", data_dict["LinkedIn"], color_sequence=linkedin_colors)
     show_key_insights(data_dict["LinkedIn"], "LinkedIn")
+
+with tab_summary:
+    st.header("📊 Overall Summary: Cross-Platform Insights")
+
+    st.write("""
+This section provides a short comparison across **Facebook**, **Instagram**, and **LinkedIn**, 
+highlighting general trends in audience growth, views, content production, and engagement patterns.
+
+**Followers:**  
+Facebook tends to show a more consistent follower base, Instagram shows faster growth when content volume increases, 
+and LinkedIn’s follower count moves more gradually but responds well to professional or community updates.
+
+**Views & Reach:**  
+Instagram usually sees the strongest spikes in views due to visual content, while Facebook has more stable month-to-month patterns.  
+LinkedIn views fluctuate depending on event-related posts and announcements.
+
+**Engagement:**  
+Facebook engagement tends to be steady with moderate variations.  
+Instagram engagement rises when content frequency increases.  
+LinkedIn engagement is lower in volume but often deeper in interaction quality (comments over likes).
+
+**Content Posting:**  
+Posting frequency on Instagram has the strongest impact on performance.  
+Facebook benefits from consistent monthly posts.  
+LinkedIn interacts strongly with posts related to community achievements, events, or writing updates.
+
+Overall, each platform contributes in a different way to IWA’s visibility:  
+**Instagram** drives reach, **Facebook** maintains stability and general presence,  
+and **LinkedIn** strengthens professional identity and connections.
+    """)
+
