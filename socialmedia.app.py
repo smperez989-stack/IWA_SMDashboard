@@ -250,7 +250,7 @@ linkedin_colors = [
 # 7. Tabs per social network
 # =========================================
 tab_fb, tab_ig, tab_li, tab_summary = st.tabs(
-    ["Overall Summary", "Facebook", "Instagram", "LinkedIn"]
+    ["Facebook", "Instagram", "LinkedIn", "Overall Summary"]
 )
 
 with tab_summary:
