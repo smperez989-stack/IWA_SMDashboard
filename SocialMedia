@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 
+df = pd.read_excel("IWA SM Analytics.xlsx")
+
 # =========================================
 # 1. Page config
 # =========================================
