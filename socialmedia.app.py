@@ -100,17 +100,6 @@ def show_network_tab(network_name, df):
 # =========================================
 # 5. Tabs per social network
 # =========================================
-tab_fb, tab_ig, tab_li = st.tabs(["Facebook", "Instagram", "LinkedIn"])
-
-with tab_fb:
-    show_network_tab("Facebook", data_dict["Facebook"])
-
-with tab_ig:
-    show_network_tab("Instagram", data_dict["Instagram"])
-
-with tab_li:
-    show_network_tab("LinkedIn", data_dict["LinkedIn"])
-
 def show_key_insights(df):
     st.subheader("📌 Key Insights: November vs October")
 
@@ -151,3 +140,16 @@ def show_key_insights(df):
         "Percentage Change (%)": "{:,.1f}"
     }))
 
+tab_fb, tab_ig, tab_li = st.tabs(["Facebook", "Instagram", "LinkedIn"])
+
+with tab_fb:
+    show_network_tab("Facebook", data_dict["Facebook"])
+    show_key_insights(data_dict["Facebook"])
+
+with tab_ig:
+    show_network_tab("Instagram", data_dict["Instagram"])
+    show_key_insights(data_dict["Instagram"])
+
+with tab_li:
+    show_network_tab("LinkedIn", data_dict["LinkedIn"])
+    show_key_insights(data_dict["LinkedIn"])
