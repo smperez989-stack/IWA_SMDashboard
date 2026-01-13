@@ -71,35 +71,69 @@ else:
 
 # =========================================
 # 4. Helper to generate textual key insights
+#    (Updated: November vs December + works without a "Date" column)
 # =========================================
-def generate_insight_text(df, network_name):
-    # Filtrar solo Octubre y Noviembre
-    df_subset = df[df["Month"].isin(["October", "November"])]
+import pandas as pd
+
+def _add_sort_date_if_missing(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Creates a sortable 'Date' column using Year + Month if 'Date' is missing.
+    Assumes Month is a month name in English (e.g., 'November', 'December').
+    """
+    df = df.copy()
+
+    if "Date" not in df.columns:
+        month_order = [
+            "January","February","March","April","May","June",
+            "July","August","September","October","November","December"
+        ]
+        month_map = {m: i for i, m in enumerate(month_order, start=1)}
+
+        # Safe conversion (handles unexpected month values)
+        df["_month_num"] = df["Month"].map(month_map)
+
+        # Build a first-day-of-month date for sorting
+        df["Date"] = pd.to_datetime(
+            dict(year=df["Year"], month=df["_month_num"], day=1),
+            errors="coerce"
+        )
+
+        df.drop(columns=["_month_num"], inplace=True)
+
+    return df
+
+
+def generate_insight_text(df: pd.DataFrame, network_name: str,
+                          month_a: str = "November", month_b: str = "December") -> str:
+    df = _add_sort_date_if_missing(df)
+
+    # Keep only the two months we want to compare
+    df_subset = df[df["Month"].isin([month_a, month_b])].copy()
 
     if df_subset["Month"].nunique() < 2:
         return (
-            f"For {network_name}, we still need data for both October and November "
+            f"For {network_name}, we still need data for both {month_a} and {month_b} "
             "to compare one month against the other."
         )
 
     metrics = ["Followers", "Views", "Posts", "Interactions", "Comments"]
 
-    changes_oct_nov = {"up": [], "down": [], "stable": []}
+    changes_a_b = {"up": [], "down": [], "stable": []}
 
     for metric in metrics:
         if metric in df_subset.columns:
-            oct_val = df_subset[df_subset["Month"] == "October"][metric].sum()
-            nov_val = df_subset[df_subset["Month"] == "November"][metric].sum()
+            a_val = df_subset[df_subset["Month"] == month_a][metric].sum()
+            b_val = df_subset[df_subset["Month"] == month_b][metric].sum()
 
-            if nov_val > oct_val:
-                changes_oct_nov["up"].append(metric.lower())
-            elif nov_val < oct_val:
-                changes_oct_nov["down"].append(metric.lower())
+            if b_val > a_val:
+                changes_a_b["up"].append(metric.lower())
+            elif b_val < a_val:
+                changes_a_b["down"].append(metric.lower())
             else:
-                changes_oct_nov["stable"].append(metric.lower())
+                changes_a_b["stable"].append(metric.lower())
 
-    # Tendencia general entre todos los meses (primer mes vs último mes)
-    df_sorted = df.sort_values("Date")
+    # Overall trend: compare first vs last available month (by Date)
+    df_sorted = df.sort_values("Date").dropna(subset=["Date"])
     first_month = df_sorted["Month"].iloc[0]
     last_month = df_sorted["Month"].iloc[-1]
 
@@ -117,64 +151,47 @@ def generate_insight_text(df, network_name):
             else:
                 trends_all["mixed"].append(metric.lower())
 
-    # Texto simple para octubre vs noviembre
-    parts_oct_nov = []
-    if changes_oct_nov["up"]:
-        parts_oct_nov.append(
-            f"{', '.join(changes_oct_nov['up'])} went up from October to November"
-        )
-    if changes_oct_nov["down"]:
-        parts_oct_nov.append(
-            f"{', '.join(changes_oct_nov['down'])} went down from October to November"
-        )
-    if changes_oct_nov["stable"]:
-        parts_oct_nov.append(
-            f"{', '.join(changes_oct_nov['stable'])} stayed at a similar level"
-        )
+    # Simple text for month_a vs month_b
+    parts_a_b = []
+    if changes_a_b["up"]:
+        parts_a_b.append(f"{', '.join(changes_a_b['up'])} went up from {month_a} to {month_b}")
+    if changes_a_b["down"]:
+        parts_a_b.append(f"{', '.join(changes_a_b['down'])} went down from {month_a} to {month_b}")
+    if changes_a_b["stable"]:
+        parts_a_b.append(f"{', '.join(changes_a_b['stable'])} stayed at a similar level")
 
-    if parts_oct_nov:
-        sentence_oct_nov = "; ".join(parts_oct_nov) + "."
-    else:
-        sentence_oct_nov = (
-            "There are only small changes between October and November."
-        )
+    sentence_a_b = "; ".join(parts_a_b) + "." if parts_a_b else (
+        f"There are only small changes between {month_a} and {month_b}."
+    )
 
-    # Texto simple para todos los meses
+    # Simple text across all months
     parts_all = []
     if trends_all["up"]:
-        parts_all.append(
-            f"over all months, {', '.join(trends_all['up'])} show a general increase"
-        )
+        parts_all.append(f"over all months, {', '.join(trends_all['up'])} show a general increase")
     if trends_all["down"]:
         parts_all.append(
-            f"{', '.join(trends_all['down'])} move slightly down when we compare the first and last month"
+            f"{', '.join(trends_all['down'])} move slightly down when we compare {first_month} and {last_month}"
         )
     if trends_all["mixed"]:
         parts_all.append(
             f"{', '.join(trends_all['mixed'])} move in a more irregular way, with some stronger and weaker months"
         )
 
-    if parts_all:
-        sentence_all = "; ".join(parts_all) + "."
-    else:
-        sentence_all = (
-            "Across all months, the metrics move in different ways without one clear pattern."
-        )
+    sentence_all = "; ".join(parts_all) + "." if parts_all else (
+        "Across all months, the metrics move in different ways without one clear pattern."
+    )
 
-    text = (
-        f"For {network_name}, when we compare October and November, "
-        f"{sentence_oct_nov} "
+    return (
+        f"For {network_name}, when we compare {month_a} and {month_b}, "
+        f"{sentence_a_b} "
         f"Looking at all months, {sentence_all}"
     )
 
-    return text
 
-
-def show_key_insights(df, network_name):
+def show_key_insights(df: pd.DataFrame, network_name: str):
     st.markdown("**📌 Key insights**")
-    insight_text = generate_insight_text(df, network_name)
+    insight_text = generate_insight_text(df, network_name, month_a="November", month_b="December")
     st.markdown(insight_text)
-
 
 # =========================================
 # 5. Helper to plot one social network
