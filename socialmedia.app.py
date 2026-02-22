@@ -190,7 +190,7 @@ def generate_insight_text(df: pd.DataFrame, network_name: str,
 
 def show_key_insights(df: pd.DataFrame, network_name: str):
     st.markdown("**📌 Key insights**")
-    insight_text = generate_insight_text(df, network_name, month_a="November", month_b="December")
+    insight_text = generate_insight_text(df, network_name, month_a="December", month_b="January")
     st.markdown(insight_text)
 
 # =========================================
