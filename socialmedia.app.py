@@ -78,7 +78,7 @@ import pandas as pd
 def _add_sort_date_if_missing(df: pd.DataFrame) -> pd.DataFrame:
     """
     Creates a sortable 'Date' column using Year + Month if 'Date' is missing.
-    Assumes Month is a month name in English (e.g., 'November', 'December').
+    Assumes Month is a month name in English (e.g., 'December', 'January').
     """
     df = df.copy()
 
@@ -104,7 +104,7 @@ def _add_sort_date_if_missing(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def generate_insight_text(df: pd.DataFrame, network_name: str,
-                          month_a: str = "November", month_b: str = "December") -> str:
+                          month_a: str = "December", month_b: str = "January") -> str:
     df = _add_sort_date_if_missing(df)
 
     # Keep only the two months we want to compare
