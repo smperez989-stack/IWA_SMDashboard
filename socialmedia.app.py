@@ -71,10 +71,8 @@ else:
 
 # =========================================
 # 4. Helper to generate textual key insights
-#    (Updated: November vs December + works without a "Date" column)
+#    (Automatic comparison of the last two months in the file)
 # =========================================
-import pandas as pd
-
 def _add_sort_date_if_missing(df: pd.DataFrame) -> pd.DataFrame:
     """
     Creates a sortable 'Date' column using Year + Month if 'Date' is missing.
@@ -89,10 +87,8 @@ def _add_sort_date_if_missing(df: pd.DataFrame) -> pd.DataFrame:
         ]
         month_map = {m: i for i, m in enumerate(month_order, start=1)}
 
-        # Safe conversion (handles unexpected month values)
         df["_month_num"] = df["Month"].map(month_map)
 
-        # Build a first-day-of-month date for sorting
         df["Date"] = pd.to_datetime(
             dict(year=df["Year"], month=df["_month_num"], day=1),
             errors="coerce"
@@ -103,74 +99,96 @@ def _add_sort_date_if_missing(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def generate_insight_text(df: pd.DataFrame, network_name: str,
-                          month_a: str = "December", month_b: str = "January") -> str:
+def generate_insight_text(df: pd.DataFrame, network_name: str) -> str:
     df = _add_sort_date_if_missing(df)
-
-    # Keep only the two months we want to compare
-    df_subset = df[df["Month"].isin([month_a, month_b])].copy()
-
-    if df_subset["Month"].nunique() < 2:
-        return (
-            f"For {network_name}, we still need data for both {month_a} and {month_b} "
-            "to compare one month against the other."
-        )
 
     metrics = ["Followers", "Views", "Posts", "Interactions", "Comments"]
 
-    changes_a_b = {"up": [], "down": [], "stable": []}
+    # Keep valid dates only and sort
+    df_sorted = df.dropna(subset=["Date"]).sort_values("Date").copy()
+
+    if df_sorted.empty or len(df_sorted["Date"].unique()) < 2:
+        return (
+            f"For {network_name}, there is not enough monthly data yet to compare "
+            "the last two months available in the file."
+        )
+
+    # Get the last two available months automatically
+    last_two_dates = sorted(df_sorted["Date"].unique())[-2:]
+    prev_date = pd.Timestamp(last_two_dates[0])
+    last_date = pd.Timestamp(last_two_dates[1])
+
+    prev_row = df_sorted[df_sorted["Date"] == prev_date].iloc[-1]
+    last_row = df_sorted[df_sorted["Date"] == last_date].iloc[-1]
+
+    prev_label = prev_date.strftime("%B %Y")
+    last_label = last_date.strftime("%B %Y")
+
+    changes_last_two = {"up": [], "down": [], "stable": []}
 
     for metric in metrics:
-        if metric in df_subset.columns:
-            a_val = df_subset[df_subset["Month"] == month_a][metric].sum()
-            b_val = df_subset[df_subset["Month"] == month_b][metric].sum()
+        if metric in df_sorted.columns:
+            prev_val = prev_row[metric]
+            last_val = last_row[metric]
 
-            if b_val > a_val:
-                changes_a_b["up"].append(metric.lower())
-            elif b_val < a_val:
-                changes_a_b["down"].append(metric.lower())
-            else:
-                changes_a_b["stable"].append(metric.lower())
+            if pd.notna(prev_val) and pd.notna(last_val):
+                if last_val > prev_val:
+                    changes_last_two["up"].append(metric.lower())
+                elif last_val < prev_val:
+                    changes_last_two["down"].append(metric.lower())
+                else:
+                    changes_last_two["stable"].append(metric.lower())
 
-    # Overall trend: compare first vs last available month (by Date)
-    df_sorted = df.sort_values("Date").dropna(subset=["Date"])
-    first_month = df_sorted["Month"].iloc[0]
-    last_month = df_sorted["Month"].iloc[-1]
+    # Overall trend: compare first vs last available month
+    first_row = df_sorted.iloc[0]
+    last_row_all = df_sorted.iloc[-1]
+
+    first_label = pd.to_datetime(first_row["Date"]).strftime("%B %Y")
+    final_label = pd.to_datetime(last_row_all["Date"]).strftime("%B %Y")
 
     trends_all = {"up": [], "down": [], "mixed": []}
 
     for metric in metrics:
         if metric in df_sorted.columns:
-            first_val = df_sorted[metric].iloc[0]
-            last_val = df_sorted[metric].iloc[-1]
+            first_val = first_row[metric]
+            final_val = last_row_all[metric]
 
-            if last_val > first_val:
-                trends_all["up"].append(metric.lower())
-            elif last_val < first_val:
-                trends_all["down"].append(metric.lower())
-            else:
-                trends_all["mixed"].append(metric.lower())
+            if pd.notna(first_val) and pd.notna(final_val):
+                if final_val > first_val:
+                    trends_all["up"].append(metric.lower())
+                elif final_val < first_val:
+                    trends_all["down"].append(metric.lower())
+                else:
+                    trends_all["mixed"].append(metric.lower())
 
-    # Simple text for month_a vs month_b
-    parts_a_b = []
-    if changes_a_b["up"]:
-        parts_a_b.append(f"{', '.join(changes_a_b['up'])} went up from {month_a} to {month_b}")
-    if changes_a_b["down"]:
-        parts_a_b.append(f"{', '.join(changes_a_b['down'])} went down from {month_a} to {month_b}")
-    if changes_a_b["stable"]:
-        parts_a_b.append(f"{', '.join(changes_a_b['stable'])} stayed at a similar level")
+    # Text for automatic last-two-month comparison
+    parts_last_two = []
+    if changes_last_two["up"]:
+        parts_last_two.append(
+            f"{', '.join(changes_last_two['up'])} went up from {prev_label} to {last_label}"
+        )
+    if changes_last_two["down"]:
+        parts_last_two.append(
+            f"{', '.join(changes_last_two['down'])} went down from {prev_label} to {last_label}"
+        )
+    if changes_last_two["stable"]:
+        parts_last_two.append(
+            f"{', '.join(changes_last_two['stable'])} stayed at a similar level"
+        )
 
-    sentence_a_b = "; ".join(parts_a_b) + "." if parts_a_b else (
-        f"There are only small changes between {month_a} and {month_b}."
+    sentence_last_two = "; ".join(parts_last_two) + "." if parts_last_two else (
+        f"There are only small changes between {prev_label} and {last_label}."
     )
 
-    # Simple text across all months
+    # Text across all months
     parts_all = []
     if trends_all["up"]:
-        parts_all.append(f"over all months, {', '.join(trends_all['up'])} show a general increase")
+        parts_all.append(
+            f"over all months, {', '.join(trends_all['up'])} show a general increase"
+        )
     if trends_all["down"]:
         parts_all.append(
-            f"{', '.join(trends_all['down'])} move slightly down when we compare {first_month} and {last_month}"
+            f"{', '.join(trends_all['down'])} move slightly down when we compare {first_label} and {final_label}"
         )
     if trends_all["mixed"]:
         parts_all.append(
@@ -182,15 +200,15 @@ def generate_insight_text(df: pd.DataFrame, network_name: str,
     )
 
     return (
-        f"For {network_name}, when we compare {month_a} and {month_b}, "
-        f"{sentence_a_b} "
+        f"For {network_name}, when we compare the last two available months "
+        f"({prev_label} and {last_label}), {sentence_last_two} "
         f"Looking at all months, {sentence_all}"
     )
 
 
 def show_key_insights(df: pd.DataFrame, network_name: str):
     st.markdown("**📌 Key insights**")
-    insight_text = generate_insight_text(df, network_name, month_a="December", month_b="January")
+    insight_text = generate_insight_text(df, network_name)
     st.markdown(insight_text)
 
 # =========================================
@@ -236,10 +254,11 @@ def show_network_section(network_name, df, color_sequence=None):
 
     st.plotly_chart(fig, use_container_width=True)
 
+    # Text stays below the chart, as before
+    show_key_insights(df, network_name)
+
     with st.expander("Show data table"):
         st.dataframe(df)
-
-    show_key_insights(df, network_name)
 
 
 # =========================================
