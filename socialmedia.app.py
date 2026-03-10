@@ -34,7 +34,6 @@ def load_data(file_obj):
     for label, sheet_name in sheet_map.items():
         df = pd.read_excel(xls, sheet_name)
 
-        # Create a Date column from Year + Month
         df["Date"] = pd.to_datetime(
             df["Year"].astype(str) + "-" + df["Month"].astype(str),
             format="%Y-%B"
@@ -59,162 +58,126 @@ uploaded_file = st.sidebar.file_uploader(
 if uploaded_file is not None:
     data_dict = load_data(uploaded_file)
 else:
-    # If you run this locally, put the Excel in the same folder as app.py
     default_path = "IWA SM Analytics.xlsx"
     try:
         data_dict = load_data(default_path)
         st.sidebar.success(f"Using local file: {default_path}")
-    except Exception as e:
+    except Exception:
         st.sidebar.error("No file uploaded and default file not found.")
         st.stop()
 
 
 # =========================================
-# 4. Helper to generate textual key insights
-#    (Automatic comparison of the last two months in the file)
+# 4. Highlight last two months (NEW)
 # =========================================
-def _add_sort_date_if_missing(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Creates a sortable 'Date' column using Year + Month if 'Date' is missing.
-    Assumes Month is a month name in English (e.g., 'December', 'January').
-    """
-    df = df.copy()
+def highlight_last_two_months(fig, df: pd.DataFrame):
 
-    if "Date" not in df.columns:
-        month_order = [
-            "January","February","March","April","May","June",
-            "July","August","September","October","November","December"
-        ]
-        month_map = {m: i for i, m in enumerate(month_order, start=1)}
+    df = df.dropna(subset=["Date"]).sort_values("Date").copy()
 
-        df["_month_num"] = df["Month"].map(month_map)
+    if len(df["Date"].unique()) < 2:
+        return fig
 
-        df["Date"] = pd.to_datetime(
-            dict(year=df["Year"], month=df["_month_num"], day=1),
-            errors="coerce"
+    last_two_dates = sorted(df["Date"].unique())[-2:]
+    last_two_dates = [pd.Timestamp(d) for d in last_two_dates]
+
+    highlight_colors = [
+        "rgba(255,193,7,0.18)",   # second to last month
+        "rgba(220,53,69,0.15)"    # last month
+    ]
+
+    for i, date_value in enumerate(last_two_dates):
+
+        start_date = pd.Timestamp(date_value).replace(day=1)
+        end_date = start_date + pd.offsets.MonthBegin(1)
+
+        fig.add_vrect(
+            x0=start_date,
+            x1=end_date,
+            fillcolor=highlight_colors[i],
+            opacity=0.35,
+            layer="below",
+            line_width=0
         )
 
-        df.drop(columns=["_month_num"], inplace=True)
-
-    return df
+    return fig
 
 
-def generate_insight_text(df: pd.DataFrame, network_name: str) -> str:
-    df = _add_sort_date_if_missing(df)
+# =========================================
+# 5. Insight text generator
+# =========================================
+def generate_insight_text(df: pd.DataFrame, network_name: str):
 
     metrics = ["Followers", "Views", "Posts", "Interactions", "Comments"]
 
-    # Keep valid dates only and sort
-    df_sorted = df.dropna(subset=["Date"]).sort_values("Date").copy()
+    df_sorted = df.dropna(subset=["Date"]).sort_values("Date")
 
-    if df_sorted.empty or len(df_sorted["Date"].unique()) < 2:
-        return (
-            f"For {network_name}, there is not enough monthly data yet to compare "
-            "the last two months available in the file."
-        )
+    if len(df_sorted["Date"].unique()) < 2:
+        return f"For {network_name}, there is not enough data yet to compare the last two months."
 
-    # Get the last two available months automatically
     last_two_dates = sorted(df_sorted["Date"].unique())[-2:]
-    prev_date = pd.Timestamp(last_two_dates[0])
-    last_date = pd.Timestamp(last_two_dates[1])
 
-    prev_row = df_sorted[df_sorted["Date"] == prev_date].iloc[-1]
-    last_row = df_sorted[df_sorted["Date"] == last_date].iloc[-1]
+    prev_row = df_sorted[df_sorted["Date"] == last_two_dates[0]].iloc[-1]
+    last_row = df_sorted[df_sorted["Date"] == last_two_dates[1]].iloc[-1]
 
-    prev_label = prev_date.strftime("%B %Y")
-    last_label = last_date.strftime("%B %Y")
+    prev_label = pd.Timestamp(last_two_dates[0]).strftime("%B %Y")
+    last_label = pd.Timestamp(last_two_dates[1]).strftime("%B %Y")
 
-    changes_last_two = {"up": [], "down": [], "stable": []}
+    changes = {"up": [], "down": [], "stable": []}
 
     for metric in metrics:
+
         if metric in df_sorted.columns:
+
             prev_val = prev_row[metric]
             last_val = last_row[metric]
 
-            if pd.notna(prev_val) and pd.notna(last_val):
-                if last_val > prev_val:
-                    changes_last_two["up"].append(metric.lower())
-                elif last_val < prev_val:
-                    changes_last_two["down"].append(metric.lower())
-                else:
-                    changes_last_two["stable"].append(metric.lower())
+            if last_val > prev_val:
+                changes["up"].append(metric.lower())
 
-    # Overall trend: compare first vs last available month
-    first_row = df_sorted.iloc[0]
-    last_row_all = df_sorted.iloc[-1]
+            elif last_val < prev_val:
+                changes["down"].append(metric.lower())
 
-    first_label = pd.to_datetime(first_row["Date"]).strftime("%B %Y")
-    final_label = pd.to_datetime(last_row_all["Date"]).strftime("%B %Y")
+            else:
+                changes["stable"].append(metric.lower())
 
-    trends_all = {"up": [], "down": [], "mixed": []}
+    parts = []
 
-    for metric in metrics:
-        if metric in df_sorted.columns:
-            first_val = first_row[metric]
-            final_val = last_row_all[metric]
-
-            if pd.notna(first_val) and pd.notna(final_val):
-                if final_val > first_val:
-                    trends_all["up"].append(metric.lower())
-                elif final_val < first_val:
-                    trends_all["down"].append(metric.lower())
-                else:
-                    trends_all["mixed"].append(metric.lower())
-
-    # Text for automatic last-two-month comparison
-    parts_last_two = []
-    if changes_last_two["up"]:
-        parts_last_two.append(
-            f"{', '.join(changes_last_two['up'])} went up from {prev_label} to {last_label}"
-        )
-    if changes_last_two["down"]:
-        parts_last_two.append(
-            f"{', '.join(changes_last_two['down'])} went down from {prev_label} to {last_label}"
-        )
-    if changes_last_two["stable"]:
-        parts_last_two.append(
-            f"{', '.join(changes_last_two['stable'])} stayed at a similar level"
+    if changes["up"]:
+        parts.append(
+            f"{', '.join(changes['up'])} increased from {prev_label} to {last_label}"
         )
 
-    sentence_last_two = "; ".join(parts_last_two) + "." if parts_last_two else (
+    if changes["down"]:
+        parts.append(
+            f"{', '.join(changes['down'])} decreased from {prev_label} to {last_label}"
+        )
+
+    if changes["stable"]:
+        parts.append(
+            f"{', '.join(changes['stable'])} remained stable"
+        )
+
+    sentence = "; ".join(parts) + "." if parts else (
         f"There are only small changes between {prev_label} and {last_label}."
     )
 
-    # Text across all months
-    parts_all = []
-    if trends_all["up"]:
-        parts_all.append(
-            f"over all months, {', '.join(trends_all['up'])} show a general increase"
-        )
-    if trends_all["down"]:
-        parts_all.append(
-            f"{', '.join(trends_all['down'])} move slightly down when we compare {first_label} and {final_label}"
-        )
-    if trends_all["mixed"]:
-        parts_all.append(
-            f"{', '.join(trends_all['mixed'])} move in a more irregular way, with some stronger and weaker months"
-        )
-
-    sentence_all = "; ".join(parts_all) + "." if parts_all else (
-        "Across all months, the metrics move in different ways without one clear pattern."
-    )
-
-    return (
-        f"For {network_name}, when we compare the last two available months "
-        f"({prev_label} and {last_label}), {sentence_last_two} "
-        f"Looking at all months, {sentence_all}"
-    )
+    return f"For {network_name}, when we compare the last two months ({prev_label} and {last_label}), {sentence}"
 
 
 def show_key_insights(df: pd.DataFrame, network_name: str):
+
     st.markdown("**📌 Key insights**")
+
     insight_text = generate_insight_text(df, network_name)
+
     st.markdown(insight_text)
 
+
 # =========================================
-# 5. Helper to plot one social network
+# 6. Helper to plot one social network
 # =========================================
 def show_network_section(network_name, df, color_sequence=None):
+
     st.subheader(network_name)
 
     metrics = ["Followers", "Views", "Posts", "Interactions", "Comments"]
@@ -245,6 +208,9 @@ def show_network_section(network_name, df, color_sequence=None):
         )
     )
 
+    # NEW → highlight the last two months
+    fig = highlight_last_two_months(fig, df)
+
     fig.update_layout(
         xaxis_title="Date",
         yaxis_title="Value",
@@ -254,7 +220,6 @@ def show_network_section(network_name, df, color_sequence=None):
 
     st.plotly_chart(fig, use_container_width=True)
 
-    # Text stays below the chart, as before
     show_key_insights(df, network_name)
 
     with st.expander("Show data table"):
@@ -262,7 +227,7 @@ def show_network_section(network_name, df, color_sequence=None):
 
 
 # =========================================
-# 6. Color palettes por red social
+# 7. Color palettes por red social
 # =========================================
 facebook_colors = [
     "#4267B2", "#89CFF0", "#003f5c", "#2f4b7c", "#665191"
@@ -278,46 +243,38 @@ linkedin_colors = [
 
 
 # =========================================
-# 7. Single-page layout (all sections)
+# 8. Dashboard layout
 # =========================================
 
-# ---- Resumen general ----
 st.header("📊 Overall Summary")
 
 st.markdown("""
-Here is a simple overview of how each social network is doing:
-
 **Facebook**  
-Facebook stays quite stable from month to month. It keeps a steady audience and regular activity. It works well to maintain general visibility.
+Facebook stays quite stable from month to month.
 
 **Instagram**  
-Instagram is the most dynamic platform. When we post more content, activity grows fast. It is our strongest channel to reach new people and create visual impact.
+Instagram is the most dynamic platform.
 
 **LinkedIn**  
-LinkedIn grows slowly but in a steady way. It is useful to connect with professionals, share our achievements, and support our community work. Even if the numbers are smaller, the interactions are more focused.
+LinkedIn grows slowly but steadily.
 
 **Overall**  
-Instagram has the highest movement and reach.  
-Facebook is stable and reliable.  
-LinkedIn supports our professional image.
-
-Each platform adds a different and important value for IWA.
+Instagram has the highest movement.  
+Facebook is stable.  
+LinkedIn supports the professional image of IWA.
 """)
 
 st.markdown("---")
 
-# ---- Facebook ----
 st.header("📘 Facebook")
 show_network_section("Facebook", data_dict["Facebook"], color_sequence=facebook_colors)
 
 st.markdown("---")
 
-# ---- Instagram ----
 st.header("📷 Instagram")
 show_network_section("Instagram", data_dict["Instagram"], color_sequence=instagram_colors)
 
 st.markdown("---")
 
-# ---- LinkedIn ----
 st.header("💼 LinkedIn")
 show_network_section("LinkedIn", data_dict["LinkedIn"], color_sequence=linkedin_colors)
